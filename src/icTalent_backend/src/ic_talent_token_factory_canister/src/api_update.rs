@@ -5,9 +5,6 @@ use crate::types::*;
 use icrc_ledger_types::icrc1::transfer::*;
 use icrc_ledger_types::icrc1::account::Account;
 use icrc_ledger_types::icrc2::transfer_from::TransferFromArgs;
-use icrc_ledger_types::icrc2::approve::{ApproveArgs, ApproveError};
-
-
 
 #[ic_cdk::update]
 
@@ -29,8 +26,9 @@ pub fn send_token_faucet_request(number_of_tokens: u32) -> Result<String, String
         let new_faucet_request = FaucetTokenRequest {
             current_token_request: number_of_tokens,
             total_number_of_request: faucet_request.total_number_of_request + 1,
-            total_token_given: faucet_request.total_token_given + number_of_tokens as u64,
+            total_token_given: faucet_request.total_token_given,
         };
+
         state.borrow_mut().faucet_requests.insert(caller, new_faucet_request);
     });
 
@@ -110,7 +108,7 @@ pub fn change_admin(new_admin: Principal) -> Result<String, String> {
     });
 
     // Trigger token transfer
-    transfer_tokens(user, request.current_token_request).await.map_err(|e| e)?;
+    transfer_tokens(user, request.current_token_request, caller).await.map_err(|e| e)?;
 
     Ok("Request accepted".to_string())
 }
@@ -139,36 +137,11 @@ pub async fn reject_token_request(user: Principal) -> Result<String, String> {
 }
 
 #[ic_cdk::update]
-async fn transfer_tokens(to: Principal, amount: u32) -> Result<(), Error> {
+async fn transfer_tokens(to: Principal, amount: u32, admin: Principal) -> Result<(), Error> {
     let token_canister = STATE.with(|state| state.borrow().token_canister_id);
-    let spender = ic_cdk::id();
-    
-    // Step 1: Approve
-    let approve_args = ApproveArgs {
-        amount: Nat::from(amount),
-        spender: Account {
-            owner: spender,
-            subaccount: None,
-        },
-        expected_allowance: None,
-        from_subaccount: None,
-        expires_at: None,
-        memo: None,
-        fee: None,
-        created_at_time: None,
-    };
-
-    let (approve_result,): (Result<Nat, ApproveError>,) = ic_cdk::api::call::call::<_, (Result<Nat, ApproveError>,)>(
-        token_canister,
-        "icrc2_approve",
-        (approve_args,),
-    ).await.map_err(|e| Error::TransferFailed(format!("Approve failed: {}", e.1)))?;
-
-    let _: Nat = approve_result.map_err(|e: _| Error::TransferFailed(format!("Approve error: {:?}", e)))?;
-
-    // Step 2: Transfer From
+   
     let transfer_from_args = TransferFromArgs {
-        from: Account::from(ic_cdk::caller()),
+        from: Account::from(admin),
         to: Account {
             owner: to,
             subaccount: None,

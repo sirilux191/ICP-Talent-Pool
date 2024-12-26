@@ -17,13 +17,7 @@ const TOKEN_MAP_MEMORY_ID: MemoryId = MemoryId::new(0);
 const FAUCET_REQUEST_MAP_MEMORY_ID: MemoryId = MemoryId::new(1);
 const TALENT_TOKEN_MAP_MEMORY_ID: MemoryId = MemoryId::new(2);
 
-// Memory IDs for Variables
-#[allow(dead_code)]
-const WASM_MODULE_MEMORY_ID: MemoryId = MemoryId::new(3);
-#[allow(dead_code)]
-const ADMIN_MEMORY_ID: MemoryId = MemoryId::new(4);
-#[allow(dead_code)]
-const TOKEN_CANISTER_ID_MEMORY_ID: MemoryId = MemoryId::new(5);
+
 
 // Thread-local memory manager
 thread_local! {
@@ -95,18 +89,6 @@ pub fn get_talent_token_map_memory() -> Memory {
     MEMORY_MANAGER.with(|m| m.borrow().get(TALENT_TOKEN_MAP_MEMORY_ID))
 }
 
-// Memory accessors for Variables
-pub fn get_wasm_module_memory() -> Memory {
-    MEMORY_MANAGER.with(|m| m.borrow().get(WASM_MODULE_MEMORY_ID))
-}
-
-pub fn get_admin_memory() -> Memory {
-    MEMORY_MANAGER.with(|m| m.borrow().get(ADMIN_MEMORY_ID))
-}
-
-pub fn get_token_canister_id_memory() -> Memory {
-    MEMORY_MANAGER.with(|m| m.borrow().get(TOKEN_CANISTER_ID_MEMORY_ID))
-}
 
 // Implement Storable for TokenMetadata
 impl Storable for TokenMetadata {

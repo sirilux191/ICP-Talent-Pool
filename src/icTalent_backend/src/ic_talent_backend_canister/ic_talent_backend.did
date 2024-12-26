@@ -1,0 +1,23 @@
+type Result = variant { Ok : text; Err : text };
+type Result_1 = variant { Ok : UserProfile; Err : text };
+type Result_2 = variant { Ok : vec UserProfile; Err : text };
+type UserProfile = record {
+  id : principal;
+  name : text;
+  description : text;
+  skill : text;
+  stats : UserStats;
+  achievements : vec text;
+};
+type UserStats = record {
+  client_satisfaction : nat8;
+  projects_completed : nat8;
+  years_experience : nat8;
+};
+service : () -> {
+  create_user : (UserProfile) -> (Result);
+  get_user : () -> (Result_1) query;
+  get_user_by_id : (principal) -> (Result_1) query;
+  get_user_list : () -> (Result_2) query;
+  update_user : (UserProfile) -> (Result);
+}

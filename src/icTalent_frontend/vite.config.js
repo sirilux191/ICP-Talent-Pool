@@ -1,10 +1,12 @@
-import { fileURLToPath, URL } from 'url';
-import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
-import environment from 'vite-plugin-environment';
-import dotenv from 'dotenv';
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
+import environment from "vite-plugin-environment";
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config({ path: '../../.env' });
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: "../../.env" });
 
 export default defineConfig({
   build: {
@@ -17,11 +19,29 @@ export default defineConfig({
       },
     },
   },
+  define: {
+    "process.env.DFX_NETWORK": JSON.stringify(process.env.DFX_NETWORK),
+    "process.env.CANISTER_ID_INTERNET_IDENTITY": JSON.stringify(
+      process.env.CANISTER_ID_INTERNET_IDENTITY
+    ),
+    "process.env.CANISTER_ID_IC_TALENT_BACKEND_CANISTER": JSON.stringify(
+      process.env.CANISTER_ID_IC_TALENT_BACKEND_CANISTER
+    ),
+    "process.env.CANISTER_ID_IC_TALENT_TOKEN_FACTORY_CANISTER": JSON.stringify(
+      process.env.CANISTER_ID_IC_TALENT_TOKEN_FACTORY_CANISTER
+    ),
+    "process.env.II_URL": JSON.stringify(
+      process.env.DFX_NETWORK === "local"
+        ? `http://${process.env.CANISTER_ID_INTERNET_IDENTITY}.localhost:4943/`
+        : "https://identity.ic0.app/"
+    ),
+  },
   server: {
     proxy: {
       "/api": {
         target: "http://127.0.0.1:4943",
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, "/api"),
       },
     },
   },
@@ -31,13 +51,8 @@ export default defineConfig({
     environment("all", { prefix: "DFX_" }),
   ],
   resolve: {
-    alias: [
-      {
-        find: "declarations",
-        replacement: fileURLToPath(
-          new URL("../declarations", import.meta.url)
-        ),
-      },
-    ],
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
   },
 });

@@ -1,5 +1,6 @@
 [workspace]
 members = [
-    "src/icTalent_backend"
+    "src/icTalent_backend/src/ic_talent_backend_canister",
+    "src/icTalent_backend/src/ic_talent_token_factory_canister"
 ]
 resolver = "2"

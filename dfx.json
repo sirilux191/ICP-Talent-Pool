@@ -1,17 +1,21 @@
 {
   "canisters": {
-    "icTalent_backend": {
-      "candid": "src/icTalent_backend/icTalent_backend.did",
-      "package": "icTalent_backend",
+    "ic_talent_backend_canister": {
+      "candid": "src/icTalent_backend/src/ic_talent_backend_canister/ic_talent_backend.did",
+      "package": "ic_talent_backend_canister",
+      "type": "rust"
+    },
+    "ic_talent_token_factory_canister": {
+      "candid": "src/icTalent_backend/src/ic_talent_token_factory_canister/ic_talent_token_factory.did",
+      "package": "ic_talent_token_factory_canister",
       "type": "rust"
     },
     "icTalent_frontend": {
       "dependencies": [
-        "icTalent_backend"
+        "ic_talent_backend_canister",
+        "ic_talent_token_factory_canister"
       ],
-      "source": [
-        "src/icTalent_frontend/dist"
-      ],
+      "source": ["src/icTalent_frontend/dist"],
       "type": "assets",
       "workspace": "icTalent_frontend"
     },

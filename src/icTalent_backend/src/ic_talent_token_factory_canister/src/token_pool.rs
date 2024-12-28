@@ -87,7 +87,7 @@ async fn create_talent_token_canister(token_args: CreateTokenArgs) -> Result<Pri
         Principal::management_canister(),
         "create_canister",
         (create_args,),
-        20_000_000_000
+        1_000_000_000_000
     ).await.map_err(|e| format!("Creation failed: {:?}", e))?;
 
     let wasm_module = WASM_MODULE.with(|w| w.borrow().clone());

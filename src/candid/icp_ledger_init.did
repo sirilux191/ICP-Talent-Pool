@@ -1,11 +1,11 @@
 (variant {
   Init = record {
-    token_symbol = "TALENT";
-    token_name = "Talent Token";
+    token_symbol = "ICRC1";
+    token_name = "L-ICRC1";
     minting_account = record {
-      owner = principal "yqsgv-dhpji-cjhm5-3poyx-hpzih-3h6dz-uqaic-g5jyt-2zh6o-lcbt6-sae"
+      owner = principal "4fqyk-tdzzr-ghfve-73a6v-cqo6l-qya74-5ualz-xdzzz-ousm3-vt3yo-bae"
     };
-    transfer_fee = 0;
+    transfer_fee = 10_000;
     metadata = vec {};
     initial_balances = vec {
       record {
@@ -26,3 +26,5 @@
     };
   }
 })
+
+

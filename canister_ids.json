@@ -1,4 +1,13 @@
 {
+  "icTalent_frontend": {
+    "ic": "dx326-wyaaa-aaaag-atuua-cai"
+  },
+  "ic_talent_backend_canister": {
+    "ic": "dq24k-3aaaa-aaaag-atuuq-cai"
+  },
+  "ic_talent_token_factory_canister": {
+    "ic": "dzzxw-niaaa-aaaag-atuva-cai"
+  },
   "icrc_talent_token_ledger_canister": {
     "ic": "c5uye-uiaaa-aaaag-atuta-cai"
   }

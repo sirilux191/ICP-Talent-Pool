@@ -13,12 +13,12 @@ pub async fn get_token_metadata(token_id: Principal) -> Result<TokenMetadata, St
 #[ic_cdk::query]
 pub async fn get_faucet_requests() -> Result<Vec<( Principal, FaucetTokenRequest)>, String> {
     let caller = ic_cdk::caller();
-    if caller == STATE.with(|state| state.borrow().admin) {
-        return Err("Not authorized".to_string());
+    if caller != STATE.with(|state| state.borrow().admin) {
+        return Err(format!("Not authorized, caller: {}", caller.to_text()).to_string());
     }
     STATE.with(|state| {
-        let faucet_request = state.borrow().faucet_requests.iter().map(|(request_sender, request)| (request_sender, request)  ).collect()    ;
-        Ok(faucet_request)
+        let faucet_requests = state.borrow().faucet_requests.iter().map(|(request_sender, request)| (request_sender, request)  ).collect()    ;
+        Ok(faucet_requests)
     })
 }
 
@@ -30,6 +30,12 @@ pub async fn get_list_of_tokens() -> Result<Vec<(Principal, TokenMetadata)>, Str
     })
 }
 
+#[ic_cdk::query]
+pub async fn get_admin() -> Result<Principal, String> {
+    STATE.with(|state| {
+        Ok(state.borrow().admin)
+    })
+}
 
 
 // #[ic_cdk::query]

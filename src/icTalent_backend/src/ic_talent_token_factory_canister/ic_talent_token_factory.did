@@ -1,3 +1,51 @@
-service : {
-    "greet": (text) -> (text) query;
+type CreateTokenArgs = record {
+  decimals : nat8;
+  logo : opt text;
+  name : text;
+  total_supply : nat64;
+  symbol : text;
+};
+type Error = variant { NotAuthorized; RequestNotFound; TransferFailed : text };
+type FaucetTokenRequest = record {
+  status : text;
+  current_token_request : nat32;
+  total_token_given : nat64;
+  total_number_of_request : nat32;
+};
+type Result = variant { Ok : text; Err : Error };
+type Result_1 = variant { Ok : text; Err : text };
+type Result_2 = variant { Ok : principal; Err : text };
+type Result_3 = variant {
+  Ok : vec record { principal; FaucetTokenRequest };
+  Err : text;
+};
+type Result_4 = variant {
+  Ok : vec record { principal; TokenMetadata };
+  Err : text;
+};
+type Result_5 = variant { Ok : TokenMetadata; Err : text };
+type Result_6 = variant { Ok : nat; Err : text };
+type TokenMetadata = record {
+  created : nat64;
+  decimals : nat8;
+  owner : principal;
+  logo : opt text;
+  name : text;
+  total_supply : nat64;
+  symbol : text;
+};
+service : () -> {
+  accept_token_request : (principal) -> (Result);
+  change_admin : (principal) -> (Result_1);
+  create_talent_token_canister : (CreateTokenArgs) -> (Result_2);
+  get_admin : () -> (Result_2) query;
+  get_faucet_requests : () -> (Result_3) query;
+  get_list_of_tokens : () -> (Result_4) query;
+  get_token_metadata : (principal) -> (Result_5) query;
+  register_admin : () -> (Result_1);
+  reject_token_request : (principal) -> (Result_1);
+  send_token_faucet_request : (nat32) -> (Result_1);
+  set_token_canister : (principal) -> (Result_1);
+  transfer_tokens : (principal, nat32) -> (Result_6);
+  update_wasm_module : (blob) -> (Result_1);
 }

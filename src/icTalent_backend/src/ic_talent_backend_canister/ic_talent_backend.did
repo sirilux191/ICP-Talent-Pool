@@ -20,4 +20,5 @@ service : () -> {
   get_user_by_id : (principal) -> (Result_1) query;
   get_user_list : () -> (Result_2) query;
   update_user : (UserProfile) -> (Result);
+  whoami : () -> (principal) query;
 }

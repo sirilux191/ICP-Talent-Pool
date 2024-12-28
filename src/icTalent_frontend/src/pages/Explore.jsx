@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { Input } from "../components/ui/input";
 import {
   Card,
@@ -15,7 +15,9 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
-import { useToast } from "../components/ui/use-toast";
+import { VisuallyHidden } from "../components/ui/visually-hidden";
+import { useToast } from "../hooks/use-toast";
+import ActorContext from "../ActorContext";
 
 const talents = [
   {
@@ -65,10 +67,12 @@ const talents = [
 
 function Explore() {
   const [searchQuery, setSearchQuery] = useState("");
-  const navigate = useNavigate();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [tokenAmount, setTokenAmount] = useState("");
-  const { notify } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { actors, isAuthenticated } = useContext(ActorContext);
 
   const handleCardClick = (talentId) => {
     navigate(`/talent/${talentId}`);
@@ -81,21 +85,48 @@ function Explore() {
 
   const handleFaucetRequest = async (e) => {
     e.preventDefault();
-    try {
-      // Add your API call here to request tokens
-      // For now, just simulating success
-      notify({
-        title: "Success!",
-        description: `Successfully requested ${tokenAmount} Talent Tokens`,
-      });
-      setIsFormOpen(false);
-      setTokenAmount("");
-    } catch (error) {
-      notify({
+    if (!isAuthenticated) {
+      toast({
         title: "Error",
-        description: "Failed to request tokens. Please try again.",
+        description: "Please login first",
         variant: "destructive",
       });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      if (!actors?.tokenFactory) {
+        throw new Error("Token Factory canister not initialized");
+      }
+
+      const amount = parseInt(tokenAmount);
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error("Please enter a valid token amount");
+      }
+
+      const result = await actors.tokenFactory.send_token_faucet_request(
+        amount
+      );
+
+      if (result.Ok) {
+        toast({
+          title: "Success",
+          description: result.Ok,
+        });
+        setIsFormOpen(false);
+        setTokenAmount("");
+      } else {
+        throw new Error(result.Err);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to request tokens",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -103,7 +134,19 @@ function Explore() {
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-4xl font-bold">Explore Talents</h1>
-        <Button onClick={() => setIsFormOpen(true)}>
+        <Button
+          onClick={() => {
+            if (!isAuthenticated) {
+              toast({
+                title: "Error",
+                description: "Please login first",
+                variant: "destructive",
+              });
+              return;
+            }
+            setIsFormOpen(true);
+          }}
+        >
           Request Talent Tokens
         </Button>
       </div>
@@ -188,8 +231,14 @@ function Explore() {
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
       >
-        <DialogContent>
+        <DialogContent aria-labelledby="request-tokens-title">
           <DialogHeader>
+            <VisuallyHidden>
+              <DialogTitle id="request-tokens-title">
+                Request Talent Tokens
+              </DialogTitle>
+            </VisuallyHidden>
+
             <DialogTitle>Request Talent Tokens</DialogTitle>
           </DialogHeader>
           <form

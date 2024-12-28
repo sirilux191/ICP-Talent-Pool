@@ -4,7 +4,12 @@ use crate::state_handler::STATE;
 use candid::Principal;
 
 #[ic_cdk::query]
-pub fn get_user() -> Result<UserProfile, String> {
+pub async fn whoami() -> Principal {
+    caller()
+}
+
+#[ic_cdk::query]
+pub async fn get_user() -> Result<UserProfile, String> {
     STATE.with(|state| {
         let caller = caller();
         let user = state.borrow().user_data.get(&caller);
@@ -17,7 +22,7 @@ pub fn get_user() -> Result<UserProfile, String> {
 }
 
 #[ic_cdk::query]
-pub fn get_user_by_id(id: Principal) -> Result<UserProfile, String> {
+pub async fn get_user_by_id(id: Principal) -> Result<UserProfile, String> {
     STATE.with(|state| {
         let user = state.borrow().user_data.get(&id);
         if let Some(user) = user {
@@ -29,7 +34,7 @@ pub fn get_user_by_id(id: Principal) -> Result<UserProfile, String> {
 }
 
 #[ic_cdk::query]
-pub fn get_user_list() -> Result<Vec<UserProfile>, String> {
+pub async fn get_user_list() -> Result<Vec<UserProfile>, String> {
     STATE.with(|state| {
         Ok(state.borrow().user_data.values().map(|v| v.clone()).collect::<Vec<_>>())
     })

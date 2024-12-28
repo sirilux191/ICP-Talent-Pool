@@ -9,16 +9,20 @@ import Explore from "./pages/Explore";
 import Profile from "./pages/Profile";
 import TalentProfile from "./pages/TalentProfile";
 import ActorContext from "./ActorContext";
-import { ToastContainer } from "react-toastify";
+
 import Admin from "./pages/Admin";
+import Transactions from "./pages/Transactions";
 
 import { createActor as createICTalentBackendActor } from "../../declarations/ic_talent_backend_canister";
 import { createActor as createTokenFactoryActor } from "../../declarations/ic_talent_token_factory_canister";
+import { createActor as createTokenLedgerActor } from "../../declarations/icrc_talent_token_ledger_canister";
+import { Toaster } from "./components/ui/toaster";
 
 function App() {
   const [actors, setActors] = useState({
     icTalentBackend: null,
     tokenFactory: null,
+    icrc_talent_token_ledger_canister: null,
   });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authClient, setAuthClient] = useState(null);
@@ -53,10 +57,15 @@ function App() {
         process.env.CANISTER_ID_IC_TALENT_TOKEN_FACTORY_CANISTER,
         { agent }
       );
+      const tokenLedgerActor = createTokenLedgerActor(
+        process.env.CANISTER_ID_ICRC_TALENT_TOKEN_LEDGER_CANISTER,
+        { agent }
+      );
 
       setActors({
         icTalentBackend: backendActor,
         tokenFactory: tokenFactoryActor,
+        icrc_talent_token_ledger_canister: tokenLedgerActor,
       });
     } catch (error) {
       console.error("Error initializing actors:", error);
@@ -93,7 +102,6 @@ function App() {
         defaultTheme="dark"
         storageKey="vite-ui-theme"
       >
-        <ToastContainer />
         <Router>
           <div className="min-h-screen bg-background text-foreground">
             <Header />
@@ -119,10 +127,15 @@ function App() {
                   path="/admin"
                   element={<Admin />}
                 />
+                <Route
+                  path="/transactions"
+                  element={<Transactions />}
+                />
               </Routes>
             </main>
           </div>
         </Router>
+        <Toaster />
       </ThemeProvider>
     </ActorContext.Provider>
   );

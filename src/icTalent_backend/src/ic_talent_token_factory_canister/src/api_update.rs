@@ -1,10 +1,9 @@
-
 use candid::{Nat,Principal};
 use crate::state_handler::STATE;
 use crate::types::*;
 use icrc_ledger_types::icrc1::transfer::*;
 use icrc_ledger_types::icrc1::account::Account;
-use icrc_ledger_types::icrc2::transfer_from::TransferFromArgs;
+use icrc_ledger_types::icrc2::transfer_from::*;
 
 #[ic_cdk::update]
 
@@ -21,12 +20,14 @@ pub fn send_token_faucet_request(number_of_tokens: u32) -> Result<String, String
             current_token_request: number_of_tokens,
             total_number_of_request: 0,
             total_token_given: 0,
+            status: "pending".to_string(),
         });
 
         let new_faucet_request = FaucetTokenRequest {
             current_token_request: number_of_tokens,
             total_number_of_request: faucet_request.total_number_of_request + 1,
             total_token_given: faucet_request.total_token_given,
+            status: "pending".to_string(),
         };
 
         state.borrow_mut().faucet_requests.insert(caller, new_faucet_request);
@@ -68,7 +69,7 @@ pub fn change_admin(new_admin: Principal) -> Result<String, String> {
         
         // Check if caller is current admin
         if caller != state.admin {
-            return Err("Not authorized".to_string());
+            return Err(format!("Not authorized, caller: {}", caller.to_text()).to_string());
         }
         
         Ok(())
@@ -103,12 +104,14 @@ pub fn change_admin(new_admin: Principal) -> Result<String, String> {
         let mut request = state.faucet_requests.get(&user).unwrap();
         request.total_number_of_request += 1u32;
         request.total_token_given += request.current_token_request as u64;
+        request.status = "approved".to_string();
         state.faucet_requests.insert(user, request.clone());
         request
     });
 
     // Trigger token transfer
-    transfer_tokens(user, request.current_token_request, caller).await.map_err(|e| e)?;
+    transfer_tokens(user, request.current_token_request).await
+        .map_err(|e| Error::TransferFailed(e.to_string()))?;
 
     Ok("Request accepted".to_string())
 }
@@ -137,31 +140,57 @@ pub async fn reject_token_request(user: Principal) -> Result<String, String> {
 }
 
 #[ic_cdk::update]
-async fn transfer_tokens(to: Principal, amount: u32, admin: Principal) -> Result<(), Error> {
+pub async fn transfer_tokens(to: Principal, amount: u32) -> Result<BlockIndex, String> {
+    let caller = ic_cdk::caller();
     let token_canister = STATE.with(|state| state.borrow().token_canister_id);
-   
+
+    // Prevent anonymous calls
+    if caller == Principal::anonymous() {
+        return Err("Anonymous calls not allowed".to_string());
+    }
+
     let transfer_from_args = TransferFromArgs {
-        from: Account::from(admin),
+        from: Account::from(caller),
         to: Account {
             owner: to,
             subaccount: None,
         },
         amount: Nat::from(amount),
-        fee: None,
         memo: None,
-        created_at_time: None,
         spender_subaccount: None,
+        fee: None,
+        created_at_time: None,
     };
 
-    let (transfer_result,): (Result<Nat, TransferError>,) = ic_cdk::api::call::call(
+    ic_cdk::call::<(TransferFromArgs,), (Result<BlockIndex, TransferFromError>,)>(
         token_canister,
         "icrc2_transfer_from",
         (transfer_from_args,),
-    ).await.map_err(|e| Error::TransferFailed(format!("Transfer failed: {}", e.1)))?;
+    )
+    .await
+    .map_err(|e| format!("Failed to call ledger: {:?}", e))?
+    .0
+    .map_err(|e| format!("Ledger transfer error: {:?}", e))
+}
 
-    transfer_result.map_err(|e: _| Error::TransferFailed(format!("Transfer error: {:?}", e)))?;
 
-    Ok(())
-} 
+
+#[ic_cdk::update]
+pub async fn set_token_canister(token_canister_id: Principal) -> Result<String, String> {
+    let caller = ic_cdk::caller();
+    
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        
+        // Check if caller is admin
+        if caller != state.admin {
+            return Err("Not authorized".to_string());
+        }
+        
+        state.token_canister_id = token_canister_id;
+        Ok(format!("Token canister ID set successfully: {}", token_canister_id.to_string()))
+    })
+}
+
 
 

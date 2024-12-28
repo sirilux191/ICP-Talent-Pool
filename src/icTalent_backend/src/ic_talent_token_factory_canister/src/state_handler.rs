@@ -51,11 +51,11 @@ pub struct State {
 
 // State Initialization
 #[ic_cdk::init]
-fn init(token_canister_id: Principal) {
+fn init() {
     STATE.with(|state| {
         let mut state = state.borrow_mut();
         state.admin = Principal::from_text("aaaaa-aa").unwrap();
-        state.token_canister_id = token_canister_id;
+        state.token_canister_id = ic_cdk::api::id();
         state.is_admin_registered = false;
         state.tokens = init_token_map();
         state.faucet_requests = init_faucet_request_map();

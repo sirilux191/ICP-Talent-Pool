@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { Input } from "../components/ui/input";
 import ActorContext from "../ActorContext";
 import { Principal } from "@dfinity/principal";
+import { useToast } from "../hooks/use-toast";
 
 function Profile() {
   const { actors, isAuthenticated, login, logout } = useContext(ActorContext);
@@ -31,62 +32,115 @@ function Profile() {
   const [newAchievement, setNewAchievement] = useState("");
 
   const [newToken, setNewToken] = useState({
-    tokenName: "",
-    tokenSymbol: "",
-    totalSupply: 0,
-    circulatingSupply: 0,
-    tokenPrice: 0,
+    name: "",
+    symbol: "",
+    totalSupply: BigInt(0),
+    decimals: 8,
+    logo: "",
   });
 
   const [createdToken, setCreatedToken] = useState(null);
   const [achievementsModified, setAchievementsModified] = useState(false);
+  const [userExists, setUserExists] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchUserDetails = async () => {
-      // Simulate fetching user details
-      let result;
-      if (isAuthenticated) {
-        result = await actors.icTalentBackend.get_user();
-        console.log(result);
-      }
-      if (result.Ok) {
-        const fetchedUser = {
-          name: result.Ok.name,
-          skill: result.Ok.skill,
-
-          description: result.Ok.description,
-          achievements: result.Ok.achievements,
-
-          stats: {
-            years_experience: result.Ok.stats.years_experience,
-            projects_completed: result.Ok.stats.projects_completed,
-            client_satisfaction: result.Ok.stats.client_satisfaction,
-          },
-        };
-        setUser(fetchedUser); // Set fetched user details
-      } else {
-        console.log(result.Err);
+      if (isAuthenticated && actors?.icTalentBackend) {
+        try {
+          const result = await actors.icTalentBackend.get_user();
+          if (result.Ok) {
+            setUserExists(true);
+            const fetchedUser = {
+              name: result.Ok.name,
+              skill: result.Ok.skill,
+              description: result.Ok.description,
+              achievements: result.Ok.achievements,
+              stats: {
+                years_experience: result.Ok.stats.years_experience,
+                projects_completed: result.Ok.stats.projects_completed,
+                client_satisfaction: result.Ok.stats.client_satisfaction,
+              },
+            };
+            setUser(fetchedUser);
+          } else {
+            setUserExists(false);
+            console.log(result.Err);
+          }
+        } catch (error) {
+          console.error("Error fetching user details:", error);
+          setUserExists(false);
+        }
       }
     };
 
     fetchUserDetails();
-  }, []); // Fetch user details on mount
+  }, [isAuthenticated, actors]);
 
   const handleLogin = async () => {
     login();
   };
 
+  const handleUserCreate = async () => {
+    try {
+      const result = await actors.icTalentBackend.create_user({
+        id: Principal.fromText("aaaaa-aa"),
+        name: user.name,
+        skill: user.skill,
+        description: user.description,
+        achievements: user.achievements,
+        stats: user.stats,
+      });
+      if (result.Ok) {
+        toast({
+          title: "Success",
+          description: "Profile created successfully",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to create profile",
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "An error occurred while creating profile",
+      });
+    }
+  };
+
   const handleUserUpdate = async () => {
-    console.log(user);
-    const userUpdate = await actors.icTalentBackend.create_user({
-      id: Principal.fromText("aaaaa-aa"),
-      name: user.name,
-      skill: user.skill,
-      description: user.description,
-      achievements: user.achievements,
-      stats: user.stats,
-    });
-    console.log(userUpdate);
+    try {
+      const result = await actors.icTalentBackend.update_user({
+        id: Principal.fromText("aaaaa-aa"),
+        name: user.name,
+        skill: user.skill,
+        description: user.description,
+        achievements: user.achievements,
+        stats: user.stats,
+      });
+      if (result.Ok) {
+        toast({
+          title: "Success",
+          description: "Profile updated successfully",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to update profile",
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "An error occurred while updating profile",
+      });
+    }
   };
 
   const handleAddAchievement = () => {
@@ -97,6 +151,10 @@ function Profile() {
       }));
       setNewAchievement("");
       setAchievementsModified(true);
+      toast({
+        title: "Success",
+        description: "Achievement added successfully",
+      });
     }
   };
 
@@ -106,32 +164,135 @@ function Profile() {
       achievements: prev.achievements.filter((_, i) => i !== index),
     }));
     setAchievementsModified(true);
-  };
-
-  const handleSaveProfile = () => {
-    handleUserUpdate();
-    setIsEditing(false);
-  };
-
-  const handleCreateToken = () => {
-    // Simulate token creation logic
-    const createdTokenDetails = {
-      name: newToken.tokenName,
-      symbol: newToken.tokenSymbol,
-      totalSupply: newToken.totalSupply,
-      marketCap: newToken.marketCap,
-    };
-
-    // Set the created token details in state
-    setCreatedToken(createdTokenDetails);
-
-    // Reset the newToken state after creation
-    setNewToken({
-      tokenName: "",
-      tokenSymbol: "",
-      totalSupply: 0,
-      marketCap: 0,
+    toast({
+      title: "Success",
+      description: "Achievement removed successfully",
     });
+  };
+
+  const handleSaveProfile = async () => {
+    if (userExists) {
+      await handleUserUpdate();
+    } else {
+      await handleUserCreate();
+      setUserExists(true);
+    }
+    setIsEditing(false);
+    setAchievementsModified(false);
+  };
+
+  const handleSaveAchievements = async () => {
+    if (userExists) {
+      await handleUserUpdate();
+    } else {
+      await handleUserCreate();
+      setUserExists(true);
+    }
+    setAchievementsModified(false);
+  };
+
+  const handleApproveTokenSpending = async (amount) => {
+    try {
+      const approveArgument = {
+        fee: [],
+        memo: [],
+        from_subaccount: [],
+        created_at_time: [],
+        amount: BigInt(amount),
+        expected_allowance: [],
+        expires_at: [],
+        spender: {
+          owner: Principal.fromText(
+            process.env.CANISTER_ID_IC_TALENT_TOKEN_FACTORY_CANISTER
+          ),
+          subaccount: [],
+        },
+      };
+
+      const result =
+        await actors.icrc_talent_token_ledger_canister.icrc2_approve(
+          approveArgument
+        );
+
+      if ("Ok" in result) {
+        toast({
+          title: "Success",
+          description: "Token spending approved",
+        });
+        return true;
+      } else {
+        const errorMessage =
+          typeof result.Err === "object"
+            ? Object.keys(result.Err)[0]
+            : "Failed to approve token spending";
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to approve token spending",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const handleCreateToken = async () => {
+    try {
+      if (!actors?.icTalentBackend) {
+        throw new Error("Backend not initialized");
+      }
+
+      // First approve token spending (100 tokens required)
+      const approvalSuccess = await handleApproveTokenSpending(100n);
+      if (!approvalSuccess) {
+        return;
+      }
+
+      const createTokenArgs = {
+        name: newToken.name,
+        symbol: newToken.symbol,
+        total_supply: newToken.totalSupply,
+        decimals: newToken.decimals,
+        logo: [newToken.logo],
+      };
+
+      const result = await actors.tokenFactory.create_talent_token_canister(
+        createTokenArgs
+      );
+
+      if (result.Ok) {
+        const tokenPrincipal = result.Ok;
+        setCreatedToken({
+          name: newToken.name,
+          symbol: newToken.symbol,
+          totalSupply: newToken.totalSupply.toString(),
+          principal: tokenPrincipal.toString(),
+        });
+
+        // Reset form
+        setNewToken({
+          name: "",
+          symbol: "",
+          totalSupply: BigInt(0),
+          decimals: 8,
+          logo: "",
+        });
+
+        toast({
+          title: "Success",
+          description: "Token created successfully",
+        });
+      } else {
+        throw new Error(result.Err);
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to create token",
+      });
+    }
   };
 
   if (!user) return <div>Loading...</div>; // Show loading while fetching user
@@ -320,9 +481,7 @@ function Profile() {
                 {achievementsModified && (
                   <Button
                     size="lg"
-                    onClick={() => {
-                      handleUserUpdate();
-                    }}
+                    onClick={handleSaveAchievements}
                   >
                     Save Achievements
                   </Button>
@@ -338,38 +497,45 @@ function Profile() {
             <CardContent className="space-y-4">
               <Input
                 placeholder="Token Name"
-                value={newToken.tokenName}
+                value={newToken.name}
                 onChange={(e) =>
-                  setNewToken({ ...newToken, tokenName: e.target.value })
+                  setNewToken({ ...newToken, name: e.target.value })
                 }
               />
               <Input
                 placeholder="Token Symbol"
-                value={newToken.tokenSymbol}
+                value={newToken.symbol}
                 onChange={(e) =>
-                  setNewToken({ ...newToken, tokenSymbol: e.target.value })
+                  setNewToken({ ...newToken, symbol: e.target.value })
                 }
               />
               <Input
                 type="number"
                 placeholder="Total Supply"
-                value={newToken.totalSupply}
+                value={Number(newToken.totalSupply)}
                 onChange={(e) =>
                   setNewToken({
                     ...newToken,
-                    totalSupply: parseFloat(e.target.value),
+                    totalSupply: BigInt(e.target.value || 0),
                   })
                 }
               />
               <Input
                 type="number"
-                placeholder="Market Cap"
-                value={newToken.marketCap}
+                placeholder="Decimals"
+                value={newToken.decimals}
                 onChange={(e) =>
                   setNewToken({
                     ...newToken,
-                    marketCap: parseFloat(e.target.value),
+                    decimals: parseInt(e.target.value) || 8,
                   })
+                }
+              />
+              <Input
+                placeholder="Logo URL (optional)"
+                value={newToken.logo}
+                onChange={(e) =>
+                  setNewToken({ ...newToken, logo: e.target.value })
                 }
               />
               <Button
@@ -397,7 +563,7 @@ function Profile() {
                   Total Supply: {createdToken.totalSupply}
                 </p>
                 <p className="text-lg font-bold">
-                  Market Cap: {createdToken.marketCap}
+                  Canister ID: {createdToken.principal}
                 </p>
               </CardContent>
             </Card>
@@ -442,9 +608,7 @@ function Profile() {
               {achievementsModified && (
                 <Button
                   size="lg"
-                  onClick={() => {
-                    handleUserUpdate();
-                  }}
+                  onClick={handleSaveAchievements}
                 >
                   Save Achievements
                 </Button>

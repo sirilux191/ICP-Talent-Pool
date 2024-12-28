@@ -1,11 +1,20 @@
-use candid::{Nat, Principal,encode_args,  Encode};
+use candid::{Nat, Principal, Encode};
 use crate::types::*;
 use ic_cdk::api::management_canister::main::{
     CreateCanisterArgument, CanisterIdRecord, CanisterSettings, CanisterInstallMode, InstallCodeArgument,
 };
+use crate::api_update::transfer_tokens;
 use crate::state_handler::{STATE, WASM_MODULE};
 use ic_cdk::api::caller;
 use icrc_ledger_types::icrc1::account::Account;
+
+use icrc_ledger_types::icrc::generic_value::Value;
+
+use hex;
+
+
+
+
 #[ic_cdk::update]
 pub async fn update_wasm_module(wasm: Vec<u8>) -> Result<String, String> {
     // Check if caller is admin
@@ -26,10 +35,31 @@ pub async fn update_wasm_module(wasm: Vec<u8>) -> Result<String, String> {
     Ok("WASM module updated successfully.".to_string())
 }
 
+
 #[ic_cdk::update]
-async fn create_talent_token_canister(token_args: CreateTokenArgs, token_creator: Principal) -> Result<Principal, String> {
-   
+async fn create_talent_token_canister(token_args: CreateTokenArgs) -> Result<Principal, String> {
+    let token_creator = caller();
     
+    // Check if user has already created a token
+    STATE.with(|state| {
+        let state = state.borrow();
+        if state.talent_token_map.contains_key(&token_creator) {
+            return Err("You can only create one token".to_string());
+        }
+        Ok(())
+    })?;
+
+    // Charge 100 tokens for token creation
+    let token_charge = 100u32;
+
+    
+    // Transfer tokens from creator to factory canister
+    let transfer_result = transfer_tokens(STATE.with(|state| state.borrow().admin), token_charge).await;
+    if let Err(e) = transfer_result {
+        return Err(format!("Failed to charge tokens: {}", e));
+    }
+
+    // Rest of the existing create_talent_token_canister code...
     WASM_MODULE.with(|wasm| {
         if wasm.borrow().is_empty() {
             return Err("WASM module not set".to_string());
@@ -39,9 +69,9 @@ async fn create_talent_token_canister(token_args: CreateTokenArgs, token_creator
 
     let settings = CanisterSettings {
         controllers: Some(vec![ic_cdk::id(), token_creator]),
-        compute_allocation: Some(Nat::from(0_u64)),
-        memory_allocation: Some(Nat::from(0_u64)),
-        freezing_threshold: Some(Nat::from(0_u64)),
+        compute_allocation: None,
+        memory_allocation: None,
+        freezing_threshold: None,
         log_visibility: None,
         reserved_cycles_limit: None,
         wasm_memory_limit: None,
@@ -51,54 +81,76 @@ async fn create_talent_token_canister(token_args: CreateTokenArgs, token_creator
         settings: Some(settings)
     };
 
-    let (canister_id,): (CanisterIdRecord,) = ic_cdk::api::call::call(
+  
+    let (canister_id,): (CanisterIdRecord,) = ic_cdk::api::call::call_with_payment(
         Principal::management_canister(),
         "create_canister",
-        (create_args,)
-    ).await.map_err(|_e| "Creation failed".to_string())?;
+        (create_args,),
+        20_000_000_000
+    ).await.map_err(|e| format!("Creation failed: {:?}", e))?;
 
     let wasm_module = WASM_MODULE.with(|w| w.borrow().clone());
     
-    // Create initialization args matching the Candid file structure
+    // Updated initialization args
     let init_args = InitArgs {
-        token_symbol: token_args.symbol.clone(),
-        token_name: token_args.name.clone(),
         minting_account: Account {
-            owner: token_creator,
+            owner: ic_cdk::id(),
             subaccount: None,
         },
+        fee_collector_account: Some(Account {
+            owner: token_creator,
+            subaccount: None,
+        }),
         transfer_fee: Nat::from(0u64),
-        metadata: vec![],
+        token_symbol: token_args.symbol.clone(),
+        token_name: token_args.name.clone(),
+        metadata: vec![
+            ("icrc1:name".to_string(), Value::Text(token_args.name.clone())),
+            ("icrc1:symbol".to_string(), Value::Text(token_args.symbol.clone())),
+            ("icrc1:decimals".to_string(), Value::Nat(Nat::from(token_args.decimals as u64))),
+        ],
         initial_balances: vec![(
             Account {
-                owner: token_creator,
+                owner: ic_cdk::id(),
                 subaccount: None,
             },
             Nat::from(token_args.total_supply),
         )],
+        feature_flags: Some(FeatureFlags {
+            icrc2: true,
+        }),
+        maximum_number_of_accounts: Some(1_000_000),
+        accounts_overflow_trim_quantity: Some(100_000),
         archive_options: ArchiveOptions {
-            num_blocks_to_archive: Nat::from(1000u64),
-            trigger_threshold: Nat::from(2000u64),
-            controller_id: token_creator,
-            cycles_for_archive_creation: Some(Nat::from(10_000_000_000_000u64)),
+            num_blocks_to_archive: 2000,
+            trigger_threshold: 1000,
+            max_message_size_bytes: Some(1024 * 1024),
+            cycles_for_archive_creation: Some(10_000_000_000_000),
+            node_max_memory_size_bytes: Some(3 * 1024 * 1024 * 1024),
+            controller_id: ic_cdk::id(),
+            more_controller_ids: Some(vec![token_creator]),
+            max_transactions_per_response: Some(100),
         },
-        feature_flags: Some(FeatureFlags { icrc2: true }),
+        decimals: Some(token_args.decimals as u8),
+        max_memo_length: Some(256),
     };
-
-    let install_args = Encode!(&init_args).map_err(|e| format!("Failed to encode args: {}", e))?;
+    let serialized_args = Encode!(&init_args).unwrap();
+    
+    // Debug print the hex representation of serialized args
+    ic_cdk::println!("Serialized args (hex): {}", hex::encode(&serialized_args));
 
     let install_config = InstallCodeArgument {
         mode: CanisterInstallMode::Install,
         canister_id: canister_id.canister_id,
         wasm_module,
-        arg: install_args
+        arg: serialized_args
     };
 
     let _: () = ic_cdk::api::call::call(
         Principal::management_canister(),
         "install_code",
         (install_config,)
-    ).await.map_err(|_e| "Creation failed".to_string())?;
+    ).await.map_err(|e| format!("Creation failed: {:?}", e))?;
 
     let metadata = TokenMetadata {
         name: token_args.name,
@@ -121,9 +173,4 @@ async fn create_talent_token_canister(token_args: CreateTokenArgs, token_creator
     Ok(canister_id.canister_id)
 }
 
-#[ic_cdk::update]
-pub async fn create_talent_token(token_args: CreateTokenArgs) -> Result<Principal, String> {
-    let token_creator = caller();
 
-    create_talent_token_canister(token_args, token_creator).await.map_err(|e| e.to_string())
-}

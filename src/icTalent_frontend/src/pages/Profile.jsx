@@ -19,10 +19,8 @@ function Profile() {
   const [user, setUser] = useState({
     name: "",
     skill: "",
-    tokenPrice: 0,
     description: "",
     achievements: [],
-
     stats: {
       years_experience: 0,
       projects_completed: 0,
@@ -34,8 +32,8 @@ function Profile() {
   const [newToken, setNewToken] = useState({
     name: "",
     symbol: "",
-    totalSupply: BigInt(0),
     decimals: 8,
+    tokenPrice: 0,
     logo: "",
   });
 
@@ -43,6 +41,7 @@ function Profile() {
   const [achievementsModified, setAchievementsModified] = useState(false);
   const [userExists, setUserExists] = useState(false);
   const { toast } = useToast();
+  const [userToken, setUserToken] = useState(null);
 
   useEffect(() => {
     const fetchUserDetails = async () => {
@@ -252,8 +251,8 @@ function Profile() {
       const createTokenArgs = {
         name: newToken.name,
         symbol: newToken.symbol,
-        total_supply: newToken.totalSupply,
         decimals: newToken.decimals,
+        token_price: newToken.tokenPrice,
         logo: [newToken.logo],
       };
 
@@ -266,7 +265,7 @@ function Profile() {
         setCreatedToken({
           name: newToken.name,
           symbol: newToken.symbol,
-          totalSupply: newToken.totalSupply.toString(),
+          tokenPrice: newToken.tokenPrice,
           principal: tokenPrincipal.toString(),
         });
 
@@ -274,7 +273,7 @@ function Profile() {
         setNewToken({
           name: "",
           symbol: "",
-          totalSupply: BigInt(0),
+          tokenPrice: newToken.tokenPrice,
           decimals: 8,
           logo: "",
         });
@@ -294,6 +293,31 @@ function Profile() {
       });
     }
   };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (isAuthenticated && actors?.tokenFactory) {
+        try {
+          // Fetch user's token metadata if it exists
+          const result = await actors.tokenFactory.get_user_token_metadata();
+          if (result.Ok) {
+            console.log(result.Ok);
+            const [principal, metadata] = result.Ok;
+            setUserToken({
+              principal: principal,
+              metadata: metadata,
+            });
+          } else {
+            console.log("No token found for user:", result.Err);
+          }
+        } catch (error) {
+          console.error("Error fetching token metadata:", error);
+        }
+      }
+    };
+
+    fetchData();
+  }, [isAuthenticated, actors]);
 
   if (!user) return <div>Loading...</div>; // Show loading while fetching user
 
@@ -331,159 +355,160 @@ function Profile() {
                     .join("")}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex flex-col">
-                {isEditing ? (
-                  <Input
-                    value={user.name}
-                    onChange={(e) => setUser({ ...user, name: e.target.value })}
-                    className="text-3xl font-bold"
-                  />
-                ) : (
-                  <CardTitle className="text-3xl font-bold">
-                    {user.name}
-                  </CardTitle>
-                )}
-                {isEditing ? (
-                  <Input
-                    value={user.skill}
-                    onChange={(e) =>
-                      setUser({ ...user, skill: e.target.value })
-                    }
-                    className="text-xl text-gray-600"
-                  />
-                ) : (
-                  <CardDescription className="text-xl text-gray-600">
-                    {user.skill}
-                  </CardDescription>
-                )}
+              <div className="flex flex-col w-full">
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">
+                    Full Name
+                  </label>
+                  {isEditing ? (
+                    <Input
+                      value={user.name}
+                      onChange={(e) =>
+                        setUser({ ...user, name: e.target.value })
+                      }
+                      className="text-2xl font-bold"
+                      placeholder="Enter your full name"
+                    />
+                  ) : (
+                    <CardTitle className="text-2xl font-bold">
+                      {user.name || "Not specified"}
+                    </CardTitle>
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">
+                    Primary Skill
+                  </label>
+                  {isEditing ? (
+                    <Input
+                      value={user.skill}
+                      onChange={(e) =>
+                        setUser({ ...user, skill: e.target.value })
+                      }
+                      className="text-xl"
+                      placeholder="Enter your primary skill"
+                    />
+                  ) : (
+                    <CardDescription className="text-xl text-gray-600">
+                      {user.skill || "Not specified"}
+                    </CardDescription>
+                  )}
+                </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {isEditing ? (
-                <Input
-                  value={user.description}
-                  onChange={(e) =>
-                    setUser({ ...user, description: e.target.value })
-                  }
-                  placeholder="About Me"
-                  className="text-gray-700"
-                />
-              ) : (
-                <p className="text-gray-700">{user.description}</p>
-              )}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Token Price</p>
-                  <Input
-                    type="number"
-                    value={newToken.tokenPrice}
+            <CardContent className="space-y-6">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  About Me
+                </label>
+                {isEditing ? (
+                  <textarea
+                    value={user.description}
                     onChange={(e) =>
-                      setNewToken({
-                        ...newToken,
-                        tokenPrice: parseFloat(e.target.value),
-                      })
+                      setUser({ ...user, description: e.target.value })
                     }
-                    disabled={!isEditing}
+                    placeholder="Tell us about yourself..."
+                    className="w-full min-h-[100px] p-2 border rounded-md bg-gray-800 text-white"
                   />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Symbol</p>
-                  <Input
-                    value={newToken.tokenSymbol}
-                    onChange={(e) =>
-                      setNewToken({
-                        ...newToken,
-                        tokenSymbol: e.target.value,
-                      })
-                    }
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Market Cap</p>
-                  <Input
-                    type="number"
-                    value={newToken.totalSupply}
-                    onChange={(e) =>
-                      setNewToken({
-                        ...newToken,
-                        totalSupply: parseFloat(e.target.value),
-                      })
-                    }
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Experience</p>
-                  <Input
-                    type="number"
-                    value={user.stats.years_experience}
-                    onChange={(e) =>
-                      setUser({
-                        ...user,
-                        stats: {
-                          ...user.stats,
-                          yearsExperience: parseInt(e.target.value),
-                        },
-                      })
-                    }
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Projects Completed
+                ) : (
+                  <p className="text-gray-300">
+                    {user.description || "No description provided"}
                   </p>
-                  <Input
-                    type="number"
-                    value={user.stats.projects_completed}
-                    onChange={(e) =>
-                      setUser({
-                        ...user,
-                        stats: {
-                          ...user.stats,
-                          projectsCompleted: parseInt(e.target.value),
-                        },
-                      })
-                    }
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Client Satisfaction
-                  </p>
-                  <Input
-                    type="number"
-                    value={user.stats.client_satisfaction}
-                    onChange={(e) =>
-                      setUser({
-                        ...user,
-                        stats: {
-                          ...user.stats,
-                          clientSatisfaction: parseFloat(e.target.value),
-                        },
-                      })
-                    }
-                    disabled={!isEditing}
-                  />
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Professional Stats</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">
+                      Years of Experience
+                    </label>
+                    <Input
+                      type="number"
+                      value={user.stats.years_experience}
+                      onChange={(e) =>
+                        setUser({
+                          ...user,
+                          stats: {
+                            ...user.stats,
+                            years_experience: parseInt(e.target.value) || 0,
+                          },
+                        })
+                      }
+                      disabled={!isEditing}
+                      placeholder="Enter years of experience"
+                      className={`bg-gray-800 text-white ${
+                        !isEditing ? "bg-gray-700" : ""
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">
+                      Projects Completed
+                    </label>
+                    <Input
+                      type="number"
+                      value={user.stats.projects_completed}
+                      onChange={(e) =>
+                        setUser({
+                          ...user,
+                          stats: {
+                            ...user.stats,
+                            projects_completed: parseInt(e.target.value) || 0,
+                          },
+                        })
+                      }
+                      disabled={!isEditing}
+                      placeholder="Enter projects completed"
+                      className={`bg-gray-800 text-white ${
+                        !isEditing ? "bg-gray-700" : ""
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">
+                      Client Satisfaction (Out of 5)
+                    </label>
+                    <Input
+                      type="number"
+                      value={user.stats.client_satisfaction}
+                      onChange={(e) =>
+                        setUser({
+                          ...user,
+                          stats: {
+                            ...user.stats,
+                            client_satisfaction: parseInt(e.target.value) || 0,
+                          },
+                        })
+                      }
+                      disabled={!isEditing}
+                      placeholder="Enter client satisfaction rating"
+                      className={`bg-gray-800 text-white ${
+                        !isEditing ? "bg-gray-700" : ""
+                      }`}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-4">
+
+              <div className="flex flex-wrap gap-4 pt-4">
                 <Button
                   size="lg"
+                  variant={isEditing ? "default" : "outline"}
                   onClick={
                     isEditing ? handleSaveProfile : () => setIsEditing(true)
                   }
                 >
-                  {isEditing ? "Save Profile" : "Edit Profile"}
+                  {isEditing ? "Save Changes" : "Edit Profile"}
                 </Button>
-                {achievementsModified && (
+                {isEditing && (
                   <Button
                     size="lg"
-                    onClick={handleSaveAchievements}
+                    variant="outline"
+                    onClick={() => setIsEditing(false)}
                   >
-                    Save Achievements
+                    Cancel
                   </Button>
                 )}
               </div>
@@ -492,84 +517,164 @@ function Profile() {
 
           <Card className="border-2 shadow-lg rounded-lg p-6">
             <CardHeader>
-              <CardTitle className="text-2xl">Create Token</CardTitle>
+              <CardTitle className="text-2xl">Token Management</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Input
-                placeholder="Token Name"
-                value={newToken.name}
-                onChange={(e) =>
-                  setNewToken({ ...newToken, name: e.target.value })
-                }
-              />
-              <Input
-                placeholder="Token Symbol"
-                value={newToken.symbol}
-                onChange={(e) =>
-                  setNewToken({ ...newToken, symbol: e.target.value })
-                }
-              />
-              <Input
-                type="number"
-                placeholder="Total Supply"
-                value={Number(newToken.totalSupply)}
-                onChange={(e) =>
-                  setNewToken({
-                    ...newToken,
-                    totalSupply: BigInt(e.target.value || 0),
-                  })
-                }
-              />
-              <Input
-                type="number"
-                placeholder="Decimals"
-                value={newToken.decimals}
-                onChange={(e) =>
-                  setNewToken({
-                    ...newToken,
-                    decimals: parseInt(e.target.value) || 8,
-                  })
-                }
-              />
-              <Input
-                placeholder="Logo URL (optional)"
-                value={newToken.logo}
-                onChange={(e) =>
-                  setNewToken({ ...newToken, logo: e.target.value })
-                }
-              />
-              <Button
-                size="lg"
-                onClick={handleCreateToken}
-              >
-                Create Token
-              </Button>
+            <CardContent className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Create Your Token</CardTitle>
+                  <CardDescription>
+                    Creating a token requires 100 Talent Tokens. You can request
+                    Talent Tokens from the Explore page.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {userToken ? (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold">
+                        Your Token Details
+                      </h3>
+                      <div className="space-y-2">
+                        <p>
+                          <strong>Name:</strong> {userToken.metadata.name}
+                        </p>
+                        <p>
+                          <strong>Symbol:</strong> {userToken.metadata.symbol}
+                        </p>
+                        <p>
+                          <strong>Decimals:</strong>{" "}
+                          {userToken.metadata.decimals}
+                        </p>
+                        <p>
+                          <strong>Token Price:</strong>{" "}
+                          {userToken.metadata.token_price}
+                        </p>
+                        <p>
+                          <strong>Created:</strong>{" "}
+                          {new Date(
+                            Number(userToken.metadata.created) / 1000000
+                          ).toLocaleDateString()}
+                        </p>
+                        <p>
+                          <strong>Canister ID:</strong>{" "}
+                          {userToken.principal.toString()}
+                        </p>
+                        {userToken.metadata.logo && (
+                          <div>
+                            <strong>Logo:</strong>
+                            <img
+                              src={userToken.metadata.logo}
+                              alt="Token Logo"
+                              className="w-16 h-16 mt-2 rounded-full"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold">
+                        Create New Token
+                      </h3>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Token Name
+                        </label>
+                        <Input
+                          placeholder="Enter token name"
+                          value={newToken.name}
+                          onChange={(e) =>
+                            setNewToken({ ...newToken, name: e.target.value })
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Token Symbol
+                        </label>
+                        <Input
+                          placeholder="Enter token symbol (e.g., BTC, ETH)"
+                          value={newToken.symbol}
+                          onChange={(e) =>
+                            setNewToken({ ...newToken, symbol: e.target.value })
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Token Price in Talent tokens
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="Enter price in TALENT tokens"
+                          value={newToken.tokenPrice}
+                          onChange={(e) =>
+                            setNewToken({
+                              ...newToken,
+                              tokenPrice: parseInt(e.target.value) || 0,
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Decimals
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="Enter number of decimals (default: 8)"
+                          value={newToken.decimals}
+                          onChange={(e) =>
+                            setNewToken({
+                              ...newToken,
+                              decimals: parseInt(e.target.value) || 8,
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Logo URL (Optional)
+                        </label>
+                        <Input
+                          placeholder="Enter logo URL"
+                          value={newToken.logo}
+                          onChange={(e) =>
+                            setNewToken({ ...newToken, logo: e.target.value })
+                          }
+                        />
+                      </div>
+
+                      <Button
+                        size="lg"
+                        onClick={handleCreateToken}
+                        className="w-full"
+                      >
+                        Create Token
+                      </Button>
+                      <p className="text-xs text-center text-muted-foreground">
+                        Need Talent Tokens? Visit the{" "}
+                        <a
+                          href="/explore"
+                          className="text-primary hover:underline"
+                        >
+                          Explore page
+                        </a>{" "}
+                        to request them.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </CardContent>
           </Card>
 
-          {createdToken && (
-            <Card className="border-2 shadow-lg rounded-lg p-6">
-              <CardHeader>
-                <CardTitle className="text-2xl">Token Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-lg font-bold">
-                  Token Name: {createdToken.name}
-                </p>
-                <p className="text-lg font-bold">
-                  Token Symbol: {createdToken.symbol}
-                </p>
-                <p className="text-lg font-bold">
-                  Total Supply: {createdToken.totalSupply}
-                </p>
-                <p className="text-lg font-bold">
-                  Canister ID: {createdToken.principal}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
+          <Card className="border-2 shadow-lg rounded-lg p-6">
             <CardHeader>
               <CardTitle className="text-2xl">Achievements</CardTitle>
             </CardHeader>

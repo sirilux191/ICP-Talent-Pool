@@ -390,7 +390,7 @@ function Admin() {
                 value={newAdminPrincipal}
                 onChange={(e) => setNewAdminPrincipal(e.target.value)}
                 placeholder="New Admin Principal ID"
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border rounded text-black dark:text-white dark:bg-gray-800"
               />
               <Button onClick={handleChangeAdmin}>Change Admin</Button>
             </div>
@@ -401,7 +401,7 @@ function Admin() {
                 value={tokenCanisterId}
                 onChange={(e) => setTokenCanisterId(e.target.value)}
                 placeholder="Token Canister ID"
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border rounded text-black dark:text-white dark:bg-gray-800"
               />
               <Button onClick={handleSetTokenCanister}>
                 Set Token Canister
@@ -417,7 +417,7 @@ function Admin() {
                   type="file"
                   accept=".wasm"
                   onChange={handleWasmFileChange}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border rounded text-black dark:text-white dark:bg-gray-800"
                 />
               </div>
               <Button

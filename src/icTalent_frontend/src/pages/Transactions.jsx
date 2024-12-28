@@ -10,6 +10,7 @@ import {
 import ActorContext from "../ActorContext";
 import { Principal } from "@dfinity/principal";
 import { useToast } from "../hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 function Transactions() {
   const { actors, isAuthenticated } = useContext(ActorContext);
@@ -17,10 +18,13 @@ function Transactions() {
   const [transferAmount, setTransferAmount] = useState("");
   const [recipientAddress, setRecipientAddress] = useState("");
   const [balance, setBalance] = useState(0);
+  const [tokenBalances, setTokenBalances] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated && actors?.icTalentBackend) {
       fetchBalance();
+      fetchAllTokenBalances();
     }
   }, [isAuthenticated, actors]);
 
@@ -43,6 +47,29 @@ function Transactions() {
         description: "Failed to fetch balance",
         variant: "destructive",
       });
+    }
+  };
+
+  const fetchAllTokenBalances = async () => {
+    setIsLoading(true);
+    try {
+      const balances = await actors.tokenFactory.get_all_token_balances();
+      console.log(balances);
+      if ("Ok" in balances) {
+        const formattedBalances = balances.Ok.map(([principal, balance]) => ({
+          principal: principal.toString(),
+          balance: Number(balance),
+        }));
+        setTokenBalances(formattedBalances);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch token balances",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -140,6 +167,47 @@ function Transactions() {
               Transfer Tokens
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Token Holdings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center p-4">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : tokenBalances.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {tokenBalances.map((token) => (
+                <div
+                  key={token.principal}
+                  className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm"
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-muted-foreground">
+                      Token ID:
+                    </div>
+                    <div className="font-mono text-sm truncate max-w-[200px]">
+                      {token.principal}
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <div className="text-sm text-muted-foreground">
+                      Balance:
+                    </div>
+                    <div className="font-semibold">{token.balance}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground p-4">
+              You don't own any talent tokens yet.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

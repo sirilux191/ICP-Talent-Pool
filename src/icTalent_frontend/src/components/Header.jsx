@@ -68,6 +68,14 @@ function Header() {
               Profile
             </Button>
           </Link>
+          <Link to="/transactions">
+            <Button
+              variant="ghost"
+              className="text-base"
+            >
+              Wallet
+            </Button>
+          </Link>
           {isAuthenticated && (
             <Button
               variant="outline"

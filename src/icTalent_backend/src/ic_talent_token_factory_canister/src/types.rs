@@ -3,12 +3,13 @@ use serde::{Deserialize, Serialize};
 use icrc_ledger_types::icrc1::account::Account;
 use icrc_ledger_types::icrc::generic_value::Value;
 
+
 #[derive(CandidType, Serialize, Deserialize, Clone)]
 pub struct TokenMetadata {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
-    pub total_supply: u64,
+    pub token_price: u8,
     pub owner: Principal,
     pub logo: Option<String>,
     pub created: u64,
@@ -27,7 +28,7 @@ pub struct CreateTokenArgs {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
-    pub total_supply: u64,
+    pub token_price: u8,
     pub logo: Option<String>,
 }
 
@@ -46,7 +47,7 @@ pub struct FeatureFlags {
     pub icrc2: bool,
 }
 
-#[derive(CandidType)]
+#[derive(CandidType, Debug, Serialize, Deserialize)]
 pub struct InitArgs {
     pub minting_account: Account,
     pub fee_collector_account: Option<Account>,
@@ -83,3 +84,17 @@ pub struct ArchiveOptions {
     #[serde(default)]
     pub max_transactions_per_response: Option<u64>,
 }
+
+
+#[derive(Debug, Serialize, Deserialize, CandidType)]
+
+pub struct UpgradeArgs {}
+
+#[derive(Debug, Serialize, Deserialize, CandidType)]
+pub enum LedgerArg {
+    Init(InitArgs),
+    Upgrade(Option<UpgradeArgs>),
+}
+
+#[derive(Debug, Clone)]
+pub struct PrincipalVec(pub Vec<Principal>);

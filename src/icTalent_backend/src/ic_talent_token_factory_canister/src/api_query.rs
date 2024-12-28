@@ -37,12 +37,22 @@ pub async fn get_admin() -> Result<Principal, String> {
     })
 }
 
+#[ic_cdk::query]
+pub async fn get_user_token_metadata() -> Result<(Principal, TokenMetadata), String> {
+    let user = ic_cdk::caller();
+    STATE.with(|state| {
+        let state = state.borrow();
+        // First get the token principal from talent_token_map
+        match state.talent_token_map.get(&user) {
+            Some(token_id) => {
+                // Then get the token metadata
+                match state.tokens.get(&token_id) {
+                    Some(metadata) => Ok((token_id, metadata.clone())),
+                    None => Err("Token metadata not found for existing token mapping".to_string())
+                }
+            },
+            None => Err("User hasn't created a token yet".to_string())
+        }
+    })
+}
 
-// #[ic_cdk::query]
-// pub fn list_tokens() -> Vec<(Principal, TokenMetadata)> {
-//     STATE.with(|state| {
-//         state.borrow().tokens.iter()
-//             .map(|(k, v)| (*k, v.clone()))
-//             .collect()
-//     })
-// } 

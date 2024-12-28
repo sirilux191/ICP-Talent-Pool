@@ -9,6 +9,7 @@ use ic_cdk::api::caller;
 use icrc_ledger_types::icrc1::account::Account;
 
 use icrc_ledger_types::icrc::generic_value::Value;
+use icrc_ledger_types::icrc1::transfer::{TransferArg, TransferError, BlockIndex};
 
 use hex;
 
@@ -114,7 +115,7 @@ async fn create_talent_token_canister(token_args: CreateTokenArgs) -> Result<Pri
                 owner: ic_cdk::id(),
                 subaccount: None,
             },
-            Nat::from(token_args.total_supply),
+            Nat::from(0u64),
         )],
         feature_flags: Some(FeatureFlags {
             icrc2: true,
@@ -134,8 +135,8 @@ async fn create_talent_token_canister(token_args: CreateTokenArgs) -> Result<Pri
         decimals: Some(token_args.decimals as u8),
         max_memo_length: Some(256),
     };
-    let serialized_args = Encode!(&init_args).unwrap();
-    
+    let token = LedgerArg::Init(init_args);
+    let serialized_args = Encode!(&token).expect("Serialization failed");
     // Debug print the hex representation of serialized args
     ic_cdk::println!("Serialized args (hex): {}", hex::encode(&serialized_args));
 
@@ -156,7 +157,7 @@ async fn create_talent_token_canister(token_args: CreateTokenArgs) -> Result<Pri
         name: token_args.name,
         symbol: token_args.symbol,
         decimals: token_args.decimals,
-        total_supply: token_args.total_supply,
+        token_price: token_args.token_price,
         owner: token_creator,
         logo: token_args.logo,
         created: ic_cdk::api::time(),
@@ -171,6 +172,128 @@ async fn create_talent_token_canister(token_args: CreateTokenArgs) -> Result<Pri
     });
 
     Ok(canister_id.canister_id)
+}
+
+
+#[ic_cdk::update]
+pub async fn buy_talent_token(canister_id: Principal, quantity: u32) -> Result<String, String> {
+    let buyer = caller();
+    
+    // Get token metadata
+    let token_metadata = STATE.with(|state| {
+        state.borrow().tokens.get(&canister_id)
+            .ok_or_else(|| "Token not found".to_string())
+    })?;
+    
+    // Calculate total cost (token_price * quantity)
+    let total_cost = (token_metadata.token_price as u32) * quantity;
+    
+    // Transfer tokens from buyer to token owner
+    let transfer_result = transfer_tokens(token_metadata.owner, total_cost).await;
+    if let Err(e) = transfer_result {
+        return Err(format!("Failed to transfer payment: {}", e));
+    }
+
+    // Create transfer args for the buying token
+    let transfer_args = TransferArg {
+        from_subaccount: None,
+        to: Account {
+            owner: buyer,
+            subaccount: None,
+        },
+        amount: Nat::from(quantity as u64),
+        fee: None,
+        memo: None,
+        created_at_time: Some(ic_cdk::api::time()),
+    };
+
+    // Call the token canister to transfer tokens to buyer
+    match ic_cdk::api::call::call::<(TransferArg,), (Result<BlockIndex, TransferError>,)>(canister_id, "icrc1_transfer", (transfer_args,)).await {
+        Ok((result,)) => {
+            match result {
+                Ok(_) => {
+                    // Update purchase history after successful transfer
+                    STATE.with(|state| {
+                        let mut state = state.borrow_mut();
+                        let mut history = state.purchase_history
+                            .get(&buyer)
+                            .map(|h| h.0.clone())
+                            .unwrap_or_default();
+                        
+                        if !history.contains(&canister_id) {
+                            history.push(canister_id);
+                            state.purchase_history.insert(buyer, PrincipalVec(history));
+                        }
+                    });
+                    
+                    Ok("Token purchase successful".to_string())
+                },
+                Err(e) => Err(format!("Token transfer failed: {:?}", e)),
+            }
+        },
+        Err((code, msg)) => Err(format!("Call failed: code={:?}, msg={}", code, msg)),
+    }
+}
+
+#[ic_cdk::update]
+pub async fn get_total_supply(token_canister_id: Principal) -> Result<Nat, String> {
+    
+    
+    // Check if the token exists
+    STATE.with(|state| {
+        if !state.borrow().tokens.contains_key(&token_canister_id) {
+            return Err("Token not found".to_string());
+        }
+        Ok(())
+    })?;
+
+    
+    // Call the token canister to get total supply
+    match ic_cdk::api::call::call(
+        token_canister_id,
+        "icrc1_total_supply",
+        ()
+    ).await {
+        Ok((balance,)) => Ok(balance),
+        Err((code, msg)) => Err(format!("Failed to get balance: code={:?}, msg={}", code, msg))
+    }
+}
+
+// Optional: Get balances for all tokens owned by the user
+#[ic_cdk::update]
+pub async fn get_all_token_balances() -> Result<Vec<(Principal, Nat)>, String> {
+    let caller = ic_cdk::caller();
+    
+    // Get list of tokens purchased by the user
+    let purchased_tokens = STATE.with(|state| {
+        state.borrow()
+            .purchase_history
+            .get(&caller)
+            .map(|h| h.0.clone())
+            .unwrap_or_default()
+    });
+
+    let mut balances = Vec::new();
+    
+    // Create account struct for the caller
+    let account = Account {
+        owner: caller,
+        subaccount: None,
+    };
+
+    // Get balance for each token
+    for token_id in purchased_tokens {
+        match ic_cdk::api::call::call(
+            token_id,
+            "icrc1_balance_of",
+            (account,)
+        ).await {
+            Ok((balance,)) => balances.push((token_id, balance)),
+            Err(_) => continue // Skip tokens that fail to respond
+        }
+    }
+
+    Ok(balances)
 }
 
 

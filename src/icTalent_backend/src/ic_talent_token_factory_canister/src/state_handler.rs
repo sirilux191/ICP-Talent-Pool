@@ -11,11 +11,13 @@ pub type Memory = VirtualMemory<DefaultMemoryImpl>;
 pub type TokenMap = StableBTreeMap<Principal, TokenMetadata, Memory>;
 pub type FaucetRequestMap = StableBTreeMap<Principal, FaucetTokenRequest, Memory>;
 pub type TalentTokenMap = StableBTreeMap<Principal, Principal, Memory>;
+pub type PurchaseHistoryMap = StableBTreeMap<Principal, PrincipalVec, Memory>;
 
 // Memory IDs for Maps
 const TOKEN_MAP_MEMORY_ID: MemoryId = MemoryId::new(0);
 const FAUCET_REQUEST_MAP_MEMORY_ID: MemoryId = MemoryId::new(1);
 const TALENT_TOKEN_MAP_MEMORY_ID: MemoryId = MemoryId::new(2);
+const PURCHASE_HISTORY_MAP_MEMORY_ID: MemoryId = MemoryId::new(3);
 
 
 
@@ -32,6 +34,7 @@ thread_local! {
             tokens: TokenMap::init(mm.borrow().get(TOKEN_MAP_MEMORY_ID)),
             faucet_requests: FaucetRequestMap::init(mm.borrow().get(FAUCET_REQUEST_MAP_MEMORY_ID)),
             talent_token_map: TalentTokenMap::init(mm.borrow().get(TALENT_TOKEN_MAP_MEMORY_ID)),
+            purchase_history: PurchaseHistoryMap::init(mm.borrow().get(PURCHASE_HISTORY_MAP_MEMORY_ID)),
             admin: ic_cdk::api::id(),
             token_canister_id: Principal::anonymous(),
             is_admin_registered: false,
@@ -44,6 +47,7 @@ pub struct State {
     pub tokens: TokenMap,
     pub faucet_requests: FaucetRequestMap,
     pub talent_token_map: TalentTokenMap,
+    pub purchase_history: PurchaseHistoryMap,
     pub admin: Principal,
     pub token_canister_id: Principal,
     pub is_admin_registered: bool,
@@ -60,6 +64,7 @@ fn init() {
         state.tokens = init_token_map();
         state.faucet_requests = init_faucet_request_map();
         state.talent_token_map = init_talent_token_map();
+        state.purchase_history = init_purchase_history_map();
     });
 }
 
@@ -76,6 +81,10 @@ pub fn init_talent_token_map() -> TalentTokenMap {
     TalentTokenMap::init(get_talent_token_map_memory())
 }
 
+pub fn init_purchase_history_map() -> PurchaseHistoryMap {
+    PurchaseHistoryMap::init(get_purchase_history_map_memory())
+}
+
 // Memory accessors for Maps
 pub fn get_token_map_memory() -> Memory {
     MEMORY_MANAGER.with(|m| m.borrow().get(TOKEN_MAP_MEMORY_ID))
@@ -87,6 +96,10 @@ pub fn get_faucet_request_map_memory() -> Memory {
 
 pub fn get_talent_token_map_memory() -> Memory {
     MEMORY_MANAGER.with(|m| m.borrow().get(TALENT_TOKEN_MAP_MEMORY_ID))
+}
+
+pub fn get_purchase_history_map_memory() -> Memory {
+    MEMORY_MANAGER.with(|m| m.borrow().get(PURCHASE_HISTORY_MAP_MEMORY_ID))
 }
 
 
@@ -115,5 +128,19 @@ impl Storable for FaucetTokenRequest {
     }
 
     const BOUND: ic_stable_structures::storable::Bound =
+        ic_stable_structures::storable::Bound::Unbounded;
+}
+
+// Implement Storable for the wrapper instead
+impl Storable for PrincipalVec {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        Cow::Owned(Encode!(&self.0).unwrap())
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        Self(Decode!(bytes.as_ref(), Vec<Principal>).unwrap())
+    }
+
+    const BOUND: ic_stable_structures::storable::Bound = 
         ic_stable_structures::storable::Bound::Unbounded;
 }

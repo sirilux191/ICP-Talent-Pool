@@ -4,7 +4,7 @@ mod api_update;
 mod api_query;
 mod token_pool;
 use icrc_ledger_types::icrc1::transfer::BlockIndex;
-use candid::Principal;
+use candid::{Nat, Principal};
 use crate::types::*;
 
 ic_cdk::export_candid!();

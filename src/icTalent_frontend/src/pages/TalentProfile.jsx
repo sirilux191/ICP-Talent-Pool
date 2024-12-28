@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { useParams } from "react-router-dom";
+import ActorContext from "../ActorContext";
+import { Principal } from "@dfinity/principal";
 import { Button } from "../components/ui/button";
 import {
   Card,
@@ -9,107 +11,202 @@ import {
   CardContent,
 } from "../components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
-
-const mockTalents = [
-  {
-    id: 1,
-    name: "Alice Johnson",
-    skill: "Full-stack Developer",
-    tokenPrice: 0.05,
-    description:
-      "Experienced full-stack developer with expertise in React, Node.js, and blockchain technologies.",
-    achievements: [
-      "Built scalable microservices architecture",
-      "Led team of 5 developers",
-      "Contributed to open-source projects",
-    ],
-    tokenMetadata: {
-      symbol: "ALICE",
-      totalSupply: 1000000,
-      circulatingSupply: 750000,
-      marketCap: 50000,
-      holders: 120,
-      weeklyVolume: 5000,
-    },
-    stats: {
-      yearsExperience: 5,
-      projectsCompleted: 23,
-      clientSatisfaction: 4.8,
-    },
-  },
-  {
-    id: 2,
-    name: "Bob Smith",
-    skill: "AI Researcher",
-    tokenPrice: 0.08,
-    description: "Expert in machine learning and AI technologies.",
-    achievements: [
-      "Published 5 research papers",
-      "Developed AI models for healthcare",
-    ],
-    tokenMetadata: {
-      symbol: "BOB",
-      totalSupply: 500000,
-      circulatingSupply: 300000,
-      marketCap: 24000,
-      holders: 80,
-      weeklyVolume: 3000,
-    },
-    stats: {
-      yearsExperience: 4,
-      projectsCompleted: 15,
-      clientSatisfaction: 4.5,
-    },
-  },
-  {
-    id: 3,
-    name: "Carol Williams",
-    skill: "UX Designer",
-    tokenPrice: 0.03,
-    description: "Passionate UX designer with a focus on user-centered design.",
-    achievements: [
-      "Redesigned major e-commerce platform",
-      "Conducted user research for 10+ projects",
-    ],
-    tokenMetadata: {
-      symbol: "CAROL",
-      totalSupply: 750000,
-      circulatingSupply: 500000,
-      marketCap: 15000,
-      holders: 60,
-      weeklyVolume: 2000,
-    },
-    stats: {
-      yearsExperience: 3,
-      projectsCompleted: 10,
-      clientSatisfaction: 4.9,
-    },
-  },
-];
+import { useToast } from "../hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import { Input } from "../components/ui/input";
 
 function TalentProfile() {
   const { id } = useParams();
   const [talent, setTalent] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { actors } = useContext(ActorContext);
+  const { toast } = useToast();
+  const [buyQuantity, setBuyQuantity] = useState(1);
+  const [showBuyDialog, setShowBuyDialog] = useState(false);
 
   useEffect(() => {
-    const fetchTalent = async () => {
-      // Find the talent based on the id
-      const foundTalent = mockTalents.find((t) => t.id === parseInt(id));
-      if (foundTalent) {
-        setTalent(foundTalent);
-      } else {
-        // Handle case where talent is not found
-        console.error("Talent not found");
+    const fetchTalentData = async () => {
+      try {
+        // Fetch token metadata
+        const tokenResult = await actors.tokenFactory.get_token_metadata(
+          Principal.fromText(id)
+        );
+        if (!tokenResult.Ok) {
+          throw new Error("Token not found");
+        }
+        const tokenData = tokenResult.Ok;
+
+        // Fetch user profile data
+        const userResult = await actors.icTalentBackend.get_user_by_id(
+          Principal.fromText(tokenData.owner.toString())
+        );
+        if (!userResult.Ok) {
+          throw new Error("User profile not found");
+        }
+        const userData = userResult.Ok;
+
+        // Get token balance
+        const balanceResult = await actors.tokenFactory.get_total_supply(
+          Principal.fromText(id)
+        );
+        console.log(balanceResult);
+        const tokenBalance = balanceResult.Ok ? Number(balanceResult.Ok) : 0;
+        console.log(tokenBalance);
+        // Combine token and user data
+        setTalent({
+          id,
+          name: userData.name,
+          skill: userData.skill,
+          description: userData.description,
+          achievements: userData.achievements,
+          tokenMetadata: {
+            symbol: tokenData.symbol,
+
+            circulatingSupply: tokenBalance,
+            tokenPrice: Number(tokenData.token_price),
+            created: tokenData.created,
+            decimals: tokenData.decimals,
+            owner: tokenData.owner.toString(),
+          },
+          stats: {
+            yearsExperience: userData.stats.years_experience,
+            projectsCompleted: userData.stats.projects_completed,
+            clientSatisfaction: userData.stats.client_satisfaction,
+          },
+        });
+      } catch (error) {
+        console.error("Error fetching talent data:", error);
+        toast({
+          title: "Error",
+          description: error.message || "Failed to fetch talent data",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    fetchTalent();
-  }, [id]);
+    if (actors?.tokenFactory && actors?.icTalentBackend) {
+      fetchTalentData();
+    }
+  }, [id, actors]);
+
+  const handleApproveTokenSpending = async (amount) => {
+    try {
+      const approveArgument = {
+        fee: [],
+        memo: [],
+        from_subaccount: [],
+        created_at_time: [],
+        amount: BigInt(amount),
+        expected_allowance: [],
+        expires_at: [],
+
+        spender: {
+          owner: Principal.fromText(
+            process.env.CANISTER_ID_IC_TALENT_TOKEN_FACTORY_CANISTER
+          ),
+          subaccount: [],
+        },
+      };
+
+      const result =
+        await actors.icrc_talent_token_ledger_canister.icrc2_approve(
+          approveArgument
+        );
+
+      if ("Ok" in result) {
+        toast({
+          title: "Success",
+          description: "Token spending approved",
+        });
+        return true;
+      } else {
+        const errorMessage =
+          typeof result.Err === "object"
+            ? Object.keys(result.Err)[0]
+            : "Failed to approve token spending";
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to approve token spending",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const handleBuyToken = async (quantity) => {
+    try {
+      if (!actors?.tokenFactory) {
+        throw new Error("Token Factory not initialized");
+      }
+
+      // Calculate total cost
+      const totalCost = talent.tokenMetadata.tokenPrice * quantity;
+
+      // First approve token spending
+      const approvalSuccess = await handleApproveTokenSpending(
+        totalCost,
+        Principal.fromText(id)
+      );
+      if (!approvalSuccess) {
+        return;
+      }
+
+      // Execute the buy transaction
+      const result = await actors.tokenFactory.buy_talent_token(
+        Principal.fromText(id),
+        quantity
+      );
+
+      if ("Ok" in result) {
+        toast({
+          title: "Success",
+          description: "Tokens purchased successfully",
+        });
+      } else {
+        throw new Error(result.Err);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to buy tokens",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="max-w-4xl mx-auto p-8 flex justify-center">
+        <p>Loading talent profile...</p>
+      </div>
+    );
+  }
+
+  if (!talent) {
+    return (
+      <div className="max-w-4xl mx-auto p-8">
+        <Card className="border-2">
+          <CardHeader>
+            <CardTitle className="text-2xl text-center">
+              Profile Not Found
+            </CardTitle>
+            <CardDescription className="text-center">
+              The talent profile you're looking for could not be found.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -151,22 +248,56 @@ function TalentProfile() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Price</p>
-                    <p className="font-medium">{talent.tokenPrice} ICP</p>
+                    <p className="font-medium">
+                      {talent.tokenMetadata.tokenPrice} ICP
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Market Cap</p>
                     <p className="font-medium">
-                      {talent.tokenMetadata.marketCap} ICP
+                      {talent.tokenMetadata.circulatingSupply *
+                        talent.tokenMetadata.tokenPrice}{" "}
+                      Talent
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Holders</p>
+                    <p className="text-sm text-muted-foreground">
+                      Circulating Supply
+                    </p>
                     <p className="font-medium">
-                      {talent.tokenMetadata.holders}
+                      {talent.tokenMetadata.circulatingSupply}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Created</p>
+                    <p className="font-medium">
+                      {new Date(
+                        Number(talent.tokenMetadata.created) / 1000000
+                      ).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Decimals</p>
+                    <p className="font-medium">
+                      {talent.tokenMetadata.decimals}
                     </p>
                   </div>
                 </div>
-                <Button className="w-full">Buy Token</Button>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Owner</p>
+                  <p
+                    className="font-mono text-xs truncate"
+                    title={talent.tokenMetadata.owner}
+                  >
+                    {talent.tokenMetadata.owner}
+                  </p>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => setShowBuyDialog(true)}
+                >
+                  Buy Tokens
+                </Button>
               </CardContent>
             </Card>
 
@@ -227,6 +358,58 @@ function TalentProfile() {
           </Card>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={showBuyDialog}
+        onOpenChange={setShowBuyDialog}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Buy Tokens</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-2">
+              Purchase tokens using your Talent Tokens. You can request Talent
+              Tokens from the Explore page.
+            </p>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Quantity</label>
+              <Input
+                type="number"
+                min="1"
+                value={buyQuantity}
+                onChange={(e) => setBuyQuantity(parseInt(e.target.value) || 1)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Total Cost</label>
+              <p className="text-lg font-medium">
+                {(buyQuantity * talent.tokenMetadata.tokenPrice).toFixed(2)}{" "}
+                Talent Tokens
+              </p>
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => {
+                handleBuyToken(buyQuantity);
+                setShowBuyDialog(false);
+              }}
+            >
+              Confirm Purchase
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              Need Talent Tokens? Visit the{" "}
+              <a
+                href="/explore"
+                className="text-primary hover:underline"
+              >
+                Explore page
+              </a>{" "}
+              to request them.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
